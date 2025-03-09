@@ -37,7 +37,9 @@ class MovieAnalyzer:
             "release_date", "box_office", "runtime", "languages",
             "countries", "genres",
         ]
-        return pd.read_csv(file_path, sep="\t", header=None, names=columns)
+        df = pd.read_csv(file_path, sep="\t", header=None, names=columns)
+        df["genres"] = df["genres"].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else [])
+        return df
 
     def _load_characters(self):
         file_path = os.path.join(self.DATA_DIR, self.CHARACTER_FILE)
@@ -52,34 +54,19 @@ class MovieAnalyzer:
         return pd.read_csv(file_path, sep="\t", header=None, names=columns)
 
     def _merge_data(self):
-        return pd.merge(self.characters_df, self.movies_df,
-                        on="wikipedia_movie_id", how="inner")
+        return pd.merge(self.characters_df, self.movies_df, on="wikipedia_movie_id", how="inner")
 
     def _clean_data(self):
         self.merged_df["actor_gender"] = self.merged_df["actor_gender"].replace(
             {"M": "Male", "F": "Female"}
         )
-        drop_columns = ["release_date_x", "freebase_movie_id_x",
-                        "freebase_movie_id_y"]
-        self.merged_df.drop(columns=[col for col in drop_columns
-                                     if col in self.merged_df.columns],
-                            inplace=True)
+        drop_columns = ["release_date_x", "freebase_movie_id_x", "freebase_movie_id_y"]
+        self.merged_df.drop(columns=[col for col in drop_columns if col in self.merged_df.columns], inplace=True)
 
     def movie_type(self, n=10):
         if not isinstance(n, int):
             raise ValueError("N must be an integer")
 
-        def safe_parse(genre_str):
-            try:
-                return (
-                    ast.literal_eval(genre_str)
-                    if isinstance(genre_str, str) and genre_str.startswith("{")
-                    else []
-                )
-            except (SyntaxError, ValueError):
-                return []
-
-        self.movies_df["genres"] = self.movies_df["genres"].apply(safe_parse)
         genre_counts = pd.Series(
             [
                 self.GENRE_MAPPING.get(genre, genre)
@@ -88,11 +75,38 @@ class MovieAnalyzer:
             ]
         ).value_counts()
 
-        return genre_counts.head(n).reset_index().rename(
-            columns={"index": "Movie_Type", 0: "Count"}
-        )
+        return genre_counts.head(n).reset_index().rename(columns={"index": "Movie_Type", 0: "Count"})
+
+    def releases(self, genre=None):
+        """Returns a DataFrame with the number of movies released per year.
+        If a genre is specified, filters by that genre.
+        """
+        self.movies_df["release_date"] = pd.to_numeric(self.movies_df["release_date"], errors="coerce")
+        df = self.movies_df.dropna(subset=["release_date"])
+
+        if genre:
+            df = df[df["genres"].apply(lambda g: genre in g)]
+
+        release_counts = df.groupby("release_date").size().reset_index(name="count")
+        return release_counts
+
+    def ages(self, mode="Y"):
+        """Returns a DataFrame with actor birth counts per year (mode='Y') or month (mode='M')."""
+        self.characters_df["actor_dob"] = pd.to_datetime(self.characters_df["actor_dob"], errors="coerce")
+        df = self.characters_df.dropna(subset=["actor_dob"])
+
+        if mode == "M":
+            df["month"] = df["actor_dob"].dt.month
+            return df.groupby("month").size().reset_index(name="count")
+        else:
+            df["year"] = df["actor_dob"].dt.year
+            return df.groupby("year").size().reset_index(name="count")
 
     def actor_count(self, plot=False):
+        """Returns a DataFrame with the number of actors per movie."""
+        if "actor_name" not in self.merged_df.columns:
+            raise AttributeError("Column 'actor_name' not found in dataset.")
+
         valid_actors = self.merged_df.dropna(subset=["actor_name"])
         actor_counts = (
             valid_actors.groupby("wikipedia_movie_id")["actor_name"]
@@ -101,79 +115,49 @@ class MovieAnalyzer:
             .reset_index()
         )
         actor_counts.columns = ["Number of Actors", "Movie Count"]
-        actor_counts = actor_counts.sort_values(by="Number of Actors",
-                                                ascending=True)
+        actor_counts = actor_counts.sort_values(by="Number of Actors", ascending=True)
 
         if plot:
             plt.figure(figsize=(10, 5))
-            plt.bar(actor_counts["Number of Actors"],
-                    actor_counts["Movie Count"],
-                    color="skyblue", alpha=0.7)
+            plt.bar(actor_counts["Number of Actors"], actor_counts["Movie Count"], color="skyblue", alpha=0.7)
             plt.xlabel("Number of Actors in a Movie")
             plt.ylabel("Count of Movies")
             plt.title("Distribution of Number of Actors per Movie")
-            plt.xticks(rotation=45)
             plt.grid(axis="y", linestyle="--", alpha=0.7)
             plt.show()
 
         return actor_counts
 
-    def actor_distributions(self, gender="All", min_height=0.5,
-                            max_height=2.5, plot=False):
-        if not isinstance(gender, str) or not isinstance(
-            min_height, (int, float)
-        ) or not isinstance(max_height, (int, float)):
+    def actor_distributions(self, gender="All", min_height=0.5, max_height=2.5, plot=False):
+        if not isinstance(gender, str) or not isinstance(min_height, (int, float)) or not isinstance(max_height, (int, float)):
             raise ValueError("Invalid data type for arguments")
-
-        self.merged_df["actor_height"] = pd.to_numeric(
-            self.merged_df["actor_height"], errors="coerce"
-        )
-
+        
+        self.merged_df["actor_height"] = pd.to_numeric(self.merged_df["actor_height"], errors="coerce")
         filtered_df = self.merged_df.dropna(subset=["actor_height"])
-        filtered_df = filtered_df[
-            (filtered_df["actor_height"] >= min_height) &
-            (filtered_df["actor_height"] <= max_height)
-        ]
 
+        filtered_df = filtered_df[
+            (filtered_df["actor_height"] >= min_height) & (filtered_df["actor_height"] <= max_height)
+            ]
         if gender != "All":
             valid_genders = filtered_df["actor_gender"].dropna().unique()
             if gender not in valid_genders:
-                raise ValueError(
-                    f"Invalid gender. Choose from: {list(valid_genders) + ['All']}"
-                )
+                raise ValueError(f"Invalid gender. Choose from: {list(valid_genders) + ['All']}")
             filtered_df = filtered_df[filtered_df["actor_gender"] == gender]
+            
+        print(f"Filtered {len(filtered_df)} actors for Gender={gender}, Height {min_height}m - {max_height}m.")
 
         if filtered_df.empty:
-            print(f"No actors found for Gender={gender}, "
-                  f"Height {min_height}m - {max_height}m.")
             return pd.DataFrame()
-
+        
         if plot:
-            plt.figure(figsize=(8, 5))
-            plt.hist(filtered_df["actor_height"], bins=20,
-                     color="blue", alpha=0.7)
-            plt.xlabel("Height (meters)")
-            plt.ylabel("Frequency")
-            plt.title(f"Actor Height Distribution ({gender})")
-            plt.grid(axis="y", linestyle="--", alpha=0.7)
-            plt.show()
-
+            import streamlit as st
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.hist(filtered_df["actor_height"], bins=20, color="blue", alpha=0.7)
+            ax.set_xlabel("Height (meters)")
+            ax.set_ylabel("Frequency")
+            ax.set_title(f"Actor Height Distribution ({gender})")
+            ax.grid(axis="y", linestyle="--", alpha=0.7)
+            st.pyplot(fig)
+        
         return filtered_df
-
-
-if __name__ == "__main__":
-    analyzer = MovieAnalyzer()
-
-    print("\nMovie Type Output:")
-    print(analyzer.movie_type(10))
-
-    print("\nActor Count Output:")
-    print(analyzer.actor_count(plot=True))
-
-    print("\nActor Distribution for Male:")
-    analyzer.actor_distributions(gender="Male",
-                                 min_height=1.5, max_height=2.0, plot=True)
-
-    print("\nActor Distribution for Female:")
-    analyzer.actor_distributions(gender="Female",
-                                 min_height=1.5, max_height=2.0, plot=True)
