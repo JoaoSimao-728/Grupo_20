@@ -1,13 +1,12 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import streamlit as st
+import matplotlib.pyplot as plt
 
-import streamlit as st
-import matplotlib.pyplot as plt
-from src.movie_analyzer import MovieAnalyzer
-import streamlit as st
-import matplotlib.pyplot as plt
-from src.movie_analyzer import MovieAnalyzer
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+
+from movie_analyzer import MovieAnalyzer
 
 # Initialize the MovieAnalyzer class
 analyzer = MovieAnalyzer()
@@ -41,7 +40,20 @@ if page == "Main":
 
     if st.sidebar.button("Show Actor Count Distribution"):
         st.subheader("📊 Distribution of Number of Actors per Movie")
-        analyzer.actor_count(plot=True)
+
+        # Get the data
+        actor_counts = analyzer.actor_count(plot=False)
+
+        # Plot in Streamlit
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.bar(actor_counts["Number of Actors"], actor_counts["Movie Count"], color="skyblue", alpha=0.7)
+        ax.set_xlabel("Number of Actors in a Movie")
+        ax.set_ylabel("Count of Movies")
+        ax.set_title("Distribution of Number of Actors per Movie")
+        ax.grid(axis="y", linestyle="--", alpha=0.7)
+
+        # Show plot in Streamlit
+        st.pyplot(fig)
 
     # ==========================
     # 📏 Actor Height Distribution
@@ -60,10 +72,12 @@ if page == "Main":
         )
 
         # Debugging: Show filtered DataFrame
-        st.write(filtered_df)
+        if filtered_df.empty:
+            st.warning("⚠️ No data available for the selected criteria.")
+        else:
+            st.dataframe(filtered_df.head(10))  # Show first 10 rows
 
-        # Check if there is data to plot
-        if not filtered_df.empty:
+            # Plot the distribution
             fig, ax = plt.subplots(figsize=(8, 5))
             ax.hist(filtered_df["actor_height"], bins=20, color="blue", alpha=0.7)
             ax.set_xlabel("Height (meters)")
@@ -71,10 +85,8 @@ if page == "Main":
             ax.set_title(f"Actor Height Distribution ({selected_gender})")
             ax.grid(axis="y", linestyle="--", alpha=0.7)
 
-            # Display plot in Streamlit
+            # Display the plot
             st.pyplot(fig)
-        else:
-            st.warning("⚠️ No data available for the selected criteria.")
 
 elif page == "Chronological Info":
     st.title("📅 Movie Releases Over Time")
@@ -94,3 +106,17 @@ elif page == "Chronological Info":
     ax.set_title("Movies Released Per Year")
     st.pyplot(fig)
 
+    # ==========================
+    # 🎂 Actor Age Distribution
+    # ==========================
+    st.title("🎂 Actor Age Distribution")
+
+    mode = st.selectbox("Select mode", ["Year (Y)", "Month (M)"])
+    data = analyzer.ages(mode='Y' if mode.startswith("Y") else 'M')
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.bar(data.iloc[:, 0], data['count'], color='green')
+    ax.set_xlabel("Year" if mode.startswith("Y") else "Month")
+    ax.set_ylabel("Number of Births")
+    ax.set_title("Actor Birth Distribution")
+    st.pyplot(fig)
