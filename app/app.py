@@ -3,7 +3,6 @@ import os
 import streamlit as st
 import matplotlib.pyplot as plt
 
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from movie_analyzer import MovieAnalyzer
@@ -28,10 +27,14 @@ if page == "Main":
     st.sidebar.subheader("📌 Top N Movie Genres")
     n_genres = st.sidebar.slider("Select N", min_value=1, max_value=20, value=10)
 
-    if st.sidebar.button("Show Top Genres"):
+    if st.sidebar.button("Show Top Genres"):  # ✅ Corrected Indentation
         st.subheader("🎭 Top Movie Genres")
         genres_df = analyzer.movie_type(n_genres)
-        st.dataframe(genres_df)
+
+        # 🔹 Fix Index to Start at 1
+        genres_df.index = range(1, len(genres_df) + 1)
+
+        st.dataframe(genres_df)  # ✅ Correct placement
 
     # ==========================
     # 📊 Actor Count Distribution
