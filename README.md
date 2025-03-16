@@ -6,7 +6,7 @@ This project is part of a Hackathon where we analyze data from the CMU Movie Cor
 ## Group Members
 - João Simão - 67610@novasbe.pt
 - Inês Ferraz - 67449@novasbe.pt
-- Jaime Ribeiro - 65006@novasbe.pt
+- Jaime Ribeiro - 65066@novasbe.pt
 - Gonçalo Moreira - 52191@novasbe.pt
 
 ## How to Run the Project
