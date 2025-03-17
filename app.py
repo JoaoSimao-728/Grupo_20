@@ -62,34 +62,41 @@ if page == "Main":
     # 📏 Actor Height Distribution
     # ==========================
     st.sidebar.subheader("📏 Actor Height Distribution")
-    selected_gender = st.sidebar.selectbox("Select Gender", ["All", "Male", "Female"])
-    height_min = st.sidebar.number_input("Min Height (m)", min_value=0.5, max_value=2.5, value=1.5)
-    height_max = st.sidebar.number_input("Max Height (m)", min_value=0.5, max_value=2.5, value=2.0)
+selected_gender = st.sidebar.selectbox("Select Gender", ["All", "Male", "Female"])
+height_min = st.sidebar.number_input("Min Height (m)", min_value=0.5, max_value=2.5, value=1.5)
+height_max = st.sidebar.number_input("Max Height (m)", min_value=0.5, max_value=2.5, value=2.0)
 
-    if st.sidebar.button("Show Actor Height Distribution"):
-        st.subheader(f"📏 Actor Height Distribution ({selected_gender})")
+if st.sidebar.button("Show Actor Height Distribution"):
+    st.subheader(f"📏 Actor Height Distribution ({selected_gender})")
 
+    # Validate height input
+    if height_min >= height_max:
+        st.error("❌ Min height must be less than Max height.")
+    else:
         # Get the filtered DataFrame
-        filtered_df = analyzer.actor_distributions(
-            gender=selected_gender, min_height=height_min, max_height=height_max, plot=False
-        )
+        filtered_df = analyzer.actor_distributions(gender=selected_gender, min_height=height_min, max_height=height_max)
 
-        # Debugging: Show filtered DataFrame
+        # Debugging output
+        st.write("Filtered Data:", filtered_df)
+
+        # Handle empty data
         if filtered_df.empty:
             st.warning("⚠️ No data available for the selected criteria.")
         else:
             st.dataframe(filtered_df.head(10))
 
-            # Plot the distribution
-            fig, ax = plt.subplots(figsize=(8, 5))
-            ax.hist(filtered_df["actor_height"], bins=20, color="blue", alpha=0.7)
-            ax.set_xlabel("Height (meters)")
-            ax.set_ylabel("Frequency")
-            ax.set_title(f"Actor Height Distribution ({selected_gender})")
-            ax.grid(axis="y", linestyle="--", alpha=0.7)
+            # Ensure data exists before plotting
+            if not filtered_df["actor_height"].empty:
+                fig, ax = plt.subplots(figsize=(8, 5))
+                ax.hist(filtered_df["actor_height"], bins=20, color="blue", alpha=0.7)
+                ax.set_xlabel("Height (meters)")
+                ax.set_ylabel("Frequency")
+                ax.set_title(f"Actor Height Distribution ({selected_gender})")
+                ax.grid(axis="y", linestyle="--", alpha=0.7)
 
-            # Display the plot
-            st.pyplot(fig)
+                # Display the plot
+                st.pyplot(fig)
+
 
 elif page == "Chronological Info":
     st.title("📅 Movie Releases Over Time")
