@@ -4,3 +4,7 @@ matplotlib
 numpy
 pydantic
 ollama
+requests
+urllib3
+ast
+tarfile
